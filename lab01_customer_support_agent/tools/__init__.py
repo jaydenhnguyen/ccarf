@@ -1,7 +1,7 @@
-from tools.escalate_to_human import escalate_to_human_schema, escalate_to_human_handler
-from tools.get_customer import get_customer_schema, get_customer_handler
-from tools.lookup_order import lookup_order_schema, lookup_order_handler
-from tools.process_refund import process_refund_schema, process_refund_handler
+from tools.escalate_to_human import escalate_to_human_handler, escalate_to_human_schema
+from tools.get_customer import get_customer_handler, get_customer_schema
+from tools.lookup_order import lookup_order_handler, lookup_order_schema
+from tools.process_refund import process_refund_handler, process_refund_schema
 
 ALL_TOOLS = [
     get_customer_schema,
