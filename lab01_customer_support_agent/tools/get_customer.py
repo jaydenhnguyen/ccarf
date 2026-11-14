@@ -4,11 +4,14 @@ from helpers.tool_helpers import tool_description_template, Description
 get_customer_schema = {
     "name": "get_customer",
     "description": tool_description_template(Description(
-        intro="Look up a customer record by customer ID or email address. Returns name, email, account status, "
-              "and tier.",
+        intro="Look up a customer record by customer ID or email address.",
         when_to_use="FIRST, before any account action (refund, escalation) - identity must be verified before "
                     "process_refund.",
         when_to_not_use="To find orders (use lookup_order). Do not guess an ID or email - ask the customer.",
+        returns_success="found=true plus customer_id, name, email, account_status, tier.",
+        returns_empty="found=false - no customer matches that ID/email. Not a failure: do not retry with the same "
+                      "value; ask the customer to re-check it or offer the other identifier.",
+        returns_error="is_error - the input was invalid (neither or both of customer_id/email); fix the input.",
         input="Provide exactly ONE of customer_id or email.",
         example='{"customer_id": "CUST-1001"} or {"email": "maria.santos@example.com"}',
     )),
@@ -33,10 +36,11 @@ def get_customer_handler(customer_id: str | None = None, email: str | None = Non
 
     if (customer_id is None) == (email is None):  # both missing or both provided
         return {
-            "error": True,
-            "errorCategory": "validation",
-            "isRetryable": True,
-            "message": "Provide exactly one of customer_id or email.",
+            "is_error": True,
+            "content": {
+                "found": False,
+                "message": "Provide exactly one of customer_id or email.",
+            }
         }
 
     if customer_id is not None:
@@ -45,18 +49,23 @@ def get_customer_handler(customer_id: str | None = None, email: str | None = Non
         customer = CUSTOMERS_BY_EMAIL.get(email)
 
     if customer is None:
-        lookup = f"ID {customer_id}" if customer_id else f"email {email}"
+        lookup_key, value = ("customer_id", customer_id) if customer_id else ("email", email)
         return {
-            "error": True,
-            "errorCategory": "validation",
-            "isRetryable": True,
-            "message": f"No customer found for {lookup}",
+            "is_error": False,
+            "content": {
+                "found": False,
+                lookup_key: value, "message": f"No customer found for {lookup_key}: {value}"
+            },
         }
 
     return {
-        "customer_id": customer["customer_id"],
-        "name": customer["name"],
-        "email": customer["email"],
-        "account_status": customer["account_status"],
-        "tier": customer["tier"],
+        "is_error": False,
+        "content": {
+            "found": True,
+            "customer_id": customer["customer_id"],
+            "name": customer["name"],
+            "email": customer["email"],
+            "account_status": customer["account_status"],
+            "tier": customer["tier"],
+        }
     }

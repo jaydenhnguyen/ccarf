@@ -86,14 +86,13 @@ def log_response(response) -> None:
 
 
 def log_tool_result(tool_name: str, tool_use_id: str, result: dict) -> None:
-    if result.get("error"):
-        logger.warning(
-            "   ✗ %s id=…%s %s retryable=%s: %s",
-            tool_name, tool_use_id[-6:], result.get("errorCategory", "error"),
-            result.get("isRetryable"), _short(result.get("message", "")),
-        )
+    """result is the handler's {"is_error": bool, "content": {...}} wrapper."""
+    content = result.get("content", {})
+    if result.get("is_error"):
+        logger.warning("   ✗ %s id=…%s is_error=True: %s",
+                       tool_name, tool_use_id[-6:], _short(content.get("message", content)))
     else:
-        logger.info("   ✓ %s id=…%s %s", tool_name, tool_use_id[-6:], _short(result, 100))
+        logger.info("   ✓ %s id=…%s %s", tool_name, tool_use_id[-6:], _short(content, 120))
 
 
 def log_final_answer(answer: str) -> None:
