@@ -9,6 +9,10 @@ process_refund_schema = {
                     "lookup_order as delivered and belonging to that customer.",
         when_to_not_use="Orders that are pending or shipped; unverified customers; refunds over $500 "
                         "(use escalate_to_human instead).",
+        returns_success="is_refunded=true plus refund_id, order_id, amount, status='processed'.",
+        returns_empty="is_refunded=false - the refund was rejected (order not found, not delivered, or amount "
+                      "exceeds the total); message says why. Nothing was refunded - never tell the customer it "
+                      "succeeded.",
         input="refund_amount must be > 0 and <= the order total.",
         example='{"order_id": "ORD-5502", "refund_amount": 59.99, "reason": "Laptop stand arrived damaged"}',
     )),
@@ -39,27 +43,30 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
     order = ORDERS.get(order_id)
     if order is None:
         return {
-            "error": True,
-            "errorCategory": "validation",
-            "isRetryable": False,
-            "message": f"Order {order_id} not found. Cannot process refund.",
+            "is_error": False,
+            "content": {
+                "is_refunded": False,
+                "message": f"Order {order_id} not found. Cannot process refund.",
+            }
         }
 
     if order.get("status") != "delivered":
         return {
-            "error": True,
-            "errorCategory": "business",
-            "isRetryable": False,
-            "message": f"Order {order_id} has status '{order['status']}'. Refunds can only be processed for delivered "
-                       f"orders.",
+            "is_error": False,
+            "content": {
+                "is_refunded": False,
+                "message": f"Order {order_id} has status '{order['status']}'. Refunds can only be processed for "
+                           f"delivered orders.",
+            }
         }
 
     if refund_amount > order["total"]:
         return {
-            "error": True,
-            "errorCategory": "validation",
-            "isRetryable": False,
-            "message": f"Refund amount ${refund_amount:.2f} exceeds order total ${order['total']:.2f}.",
+            "is_error": False,
+            "content": {
+                "is_refunded": False,
+                "message": f"Refund amount ${refund_amount:.2f} exceeds order total ${order['total']:.2f}.",
+            }
         }
 
     refund_record = {
@@ -72,9 +79,13 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
     REFUNDS_LOG.append(refund_record)
 
     return {
-        "refund_id": refund_record["refund_id"],
-        "order_id": order_id,
-        "amount": refund_amount,
-        "status": "processed",
-        "message": f"Refund of ${refund_amount:.2f} processed successfully for order {order_id}.",
+        "is_error": False,
+        "content": {
+            "is_refunded": True,
+            "refund_id": refund_record["refund_id"],
+            "order_id": order_id,
+            "amount": refund_amount,
+            "status": "processed",
+            "message": f"Refund of ${refund_amount:.2f} processed successfully for order {order_id}.",
+        }
     }
