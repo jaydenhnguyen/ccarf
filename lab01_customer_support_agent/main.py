@@ -3,9 +3,11 @@ import json
 from constants.claude_stop_reasons import END_TURN, TOOL_USE
 from helpers.claude_response_helpers import is_text_block, is_tool_use_block, is_thinking_block
 from tools import ALL_TOOLS, TOOL_HANDLERS
-from config import anthropic_client, MAX_TURNS, console, MODEL
-from helpers.console_helpers import clear_screen, show_menu, CYAN, RESET, DIM, RED, BOLD, GREEN, YELLOW
-from rich.json import JSON
+from config import anthropic_client, MAX_TURNS, console, MODEL, LOG_FILE, LOG_TO_STDERR
+from helpers.console_helpers import clear_screen, show_menu, print_final_answer, CYAN, RESET, DIM, RED, BOLD
+from helpers.agent_logger import (
+    logger, setup_agent_logger, log_user_query, log_iteration, log_response, log_tool_result, log_final_answer,
+)
 
 TEST_QUERIES = [
     "Hi, I'm Maria Santos (CUST-1001). Can you check the status of my order ORD-5501?",
@@ -45,9 +47,10 @@ def run_agent(user_input):
         "role": "user",
         "content": user_input,
     }]
+    log_user_query(user_input)
 
     for i in range(MAX_TURNS):
-        print(f"\n{DIM}--- Iteration {i + 1} ---{RESET}")
+        log_iteration(i + 1, MAX_TURNS, messages)
 
         try:
             with console.status("Processing request...", spinner="dots"):
@@ -59,6 +62,7 @@ def run_agent(user_input):
                     messages=messages
                 )
         except Exception as e:
+            logger.exception("API call failed")
             error_msg = str(e).lower()
             if "credit" in error_msg or "balance" in error_msg:
                 print(f"\n{RED}{BOLD}API credit balance is too low.{RESET}")
@@ -74,14 +78,12 @@ def run_agent(user_input):
                 print(f"\n{RED}{BOLD}Error: {e}{RESET}")
             return
 
-        print(f"  {DIM}stop_reason: {response.stop_reason}{RESET}")
+        log_response(response)
 
         if response.stop_reason == END_TURN:
-            for block in response.content:
-                if is_thinking_block(block):
-                    print(f"  {GREEN}Agent (thinking): {block.thinking}{RESET}")
-                if is_text_block(block):
-                    print(f"\n{GREEN}{BOLD}Agent:{RESET} {GREEN}{block.text}{RESET}")
+            answer = "".join(block.text for block in response.content if is_text_block(block))
+            log_final_answer(answer)
+            print_final_answer(console, answer)
             break
 
         elif response.stop_reason == TOOL_USE:
@@ -89,12 +91,8 @@ def run_agent(user_input):
 
             for block in response.content:
                 if is_tool_use_block(block):
-                    print(f"  {YELLOW}Tool call: {block.name}{RESET}")
-                    console.print(JSON(json.dumps(block.input, indent=2)), style="dim")
-
                     tool_result = execute_tool(block.name, block.input)
-                    print(f"  {DIM}Result:{RESET}")
-                    console.print(JSON(json.dumps(tool_result, indent=2)), style="dim")
+                    log_tool_result(block.name, block.id, tool_result)
 
                     tool_result_blocks.append({
                         "type": "tool_result",
@@ -102,22 +100,20 @@ def run_agent(user_input):
                         "content": json.dumps(tool_result),
                     })
 
-                elif is_text_block(block):
-                    print(f"  {GREEN}Agent (thinking): {block.text}{RESET}")
-
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_result_blocks})
 
         else:
-            raise RuntimeError(f"  {RED}Unexpected stop_reason: {response.stop_reason}{RESET}")
+            logger.error("Unexpected stop_reason: %s", response.stop_reason)
+            raise RuntimeError(f"Unexpected stop_reason: {response.stop_reason}")
 
     else:
-        raise RuntimeError(f"\n{RED}⚠ Agent reached max iterations ({MAX_TURNS}){RESET}")
-
-    print(f"\n{DIM}{'=' * 60}{RESET}\n")
+        logger.error("Agent reached max iterations (%d)", MAX_TURNS)
+        raise RuntimeError(f"Agent reached max iterations ({MAX_TURNS})")
 
 
 def main():
+    setup_agent_logger(LOG_FILE, also_stderr=LOG_TO_STDERR)
     clear_screen()
     show_menu(TEST_QUERIES)
 

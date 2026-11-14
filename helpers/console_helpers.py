@@ -1,5 +1,8 @@
 import os
 
+from rich.console import Console
+from rich.panel import Panel
+
 CYAN = "\033[96m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -20,3 +23,7 @@ def show_menu(test_queries):
     print(f"  {DIM}c. Clear screen{RESET}")
     print(f"  {DIM}q. Quit{RESET}")
     print(f"\n{DIM}Or type a custom message.{RESET}\n")
+
+
+def print_final_answer(console: Console, text: str) -> None:
+    console.print(Panel(text or "[dim](no text)[/dim]", title="Agent", border_style="green"))
