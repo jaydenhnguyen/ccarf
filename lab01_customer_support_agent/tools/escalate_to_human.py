@@ -11,6 +11,8 @@ escalate_to_human_schema = {
                     "(4) suspected fraud.",
         when_to_not_use="The customer is merely frustrated but the issue is simple - offer to resolve it first and "
                         "escalate only if they ask again. Do not escalate a refund you are allowed to process.",
+        returns_success="is_escalated=true plus escalation_id and status='pending_review'. Give the customer the "
+                        "escalation ID.",
         input="summary must include customer ID, order ID(s), amounts, what the customer wants, what was already "
               "tried, and the current state.",
         example='{"customer_id": "CUST-1002", "reason": "policy_gap", "summary": "Verified customer requests a '
@@ -56,8 +58,12 @@ def escalate_to_human_handler(customer_id: str, reason: str, summary: str, recom
     ESCALATIONS_LOG.append(escalation_record)
 
     return {
-        "escalation_id": escalation_record["escalation_id"],
-        "status": "pending_review",
-        "message": f"Case escalated to human agent. Escalation ID: {escalation_record['escalation_id']}. A human "
-                   f"agent will review this case shortly.",
+        "is_error": False,
+        "content": {
+            "is_escalated": True,
+            "escalation_id": escalation_record["escalation_id"],
+            "status": "pending_review",
+            "message": f"Case escalated to human agent. Escalation ID: {escalation_record['escalation_id']}. A human "
+                       f"agent will review this case shortly.",
+        }
     }
