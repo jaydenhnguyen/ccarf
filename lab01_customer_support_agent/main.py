@@ -16,17 +16,12 @@ TEST_QUERIES = [
     "I've been going back and forth on this for days. I want to talk to a real person.",
     "I'm Maria Santos, CUST-1001. My headphones from ORD-5501 arrived damaged and I need a refund. Also, "
     "can you check if my other order ORD-5502 has been delivered?",
-    # order not found
-    "Hi, I'm Jayden, can you tell me what is the status for the order number ORD-2712?",
-    # request refund for shipped order
-    "Hi, I'm Jack and my email is james.chen@example.com, I want to refund for order ORD-5504"
-
 ]
 
 
 def load_system_prompt():
     prompt_path = os.path.join(os.path.dirname(__file__), "system_prompt.txt")
-    with open(prompt_path) as f:
+    with open(prompt_path, "r") as f:
         content = f.read()
     return content
 
@@ -36,11 +31,10 @@ def execute_tool(tool_name: str, tool_input: dict):
 
     if not tool_handler:
         return {
-            "is_error": True,
-            "content": {
-                "is_tool_found": False,
-                "message": f"Unknown tool: {tool_name}",
-            }
+            "error": True,
+            "errorCategory": "validation",
+            "isRetryable": False,
+            "message": f"Unknown tool: {tool_name}",
         }
 
     return tool_handler(**tool_input)
@@ -49,15 +43,14 @@ def execute_tool(tool_name: str, tool_input: dict):
 def run_agent(user_input):
     system_prompt = load_system_prompt()
 
-    MESSAGES = [{
+    messages = [{
         "role": "user",
         "content": user_input,
     }]
-
     log_user_query(user_input)
 
     for i in range(MAX_TURNS):
-        log_iteration(i + 1, MAX_TURNS, MESSAGES)
+        log_iteration(i + 1, MAX_TURNS, messages)
 
         try:
             with console.status("Processing request...", spinner="dots"):
@@ -66,7 +59,7 @@ def run_agent(user_input):
                     max_tokens=1024,
                     system=system_prompt,
                     tools=ALL_TOOLS,
-                    messages=MESSAGES
+                    messages=messages
                 )
         except Exception as e:
             logger.exception("API call failed")
@@ -102,14 +95,13 @@ def run_agent(user_input):
                     log_tool_result(block.name, block.id, tool_result)
 
                     tool_result_blocks.append({
-                        "is_error": bool(tool_result.get("is_error")),
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(tool_result.get("content")),
+                        "content": json.dumps(tool_result),
                     })
 
-            MESSAGES.append({"role": "assistant", "content": response.content})
-            MESSAGES.append({"role": "user", "content": tool_result_blocks})
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_result_blocks})
 
         else:
             logger.error("Unexpected stop_reason: %s", response.stop_reason)
