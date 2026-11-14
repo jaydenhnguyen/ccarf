@@ -3,19 +3,21 @@ from helpers.tool_helpers import Description, tool_description_template
 
 process_refund_schema = {
     "name": "process_refund",
-    "description": tool_description_template(Description(
-        intro="Issue a refund (full or partial) for a DELIVERED order.",
-        when_to_use="Only after (1) the customer is verified via get_customer and (2) the order is confirmed via "
-                    "lookup_order as delivered and belonging to that customer.",
-        when_to_not_use="Orders that are pending or shipped; unverified customers; refunds over $500 "
-                        "(use escalate_to_human instead).",
-        returns_success="is_refunded=true plus refund_id, order_id, amount, status='processed'.",
-        returns_empty="is_refunded=false - the refund was rejected (order not found, not delivered, or amount "
-                      "exceeds the total); message says why. Nothing was refunded - never tell the customer it "
-                      "succeeded.",
-        input="refund_amount must be > 0 and <= the order total.",
-        example='{"order_id": "ORD-5502", "refund_amount": 59.99, "reason": "Laptop stand arrived damaged"}',
-    )),
+    "description": tool_description_template(
+        Description(
+            intro="Issue a refund (full or partial) for a DELIVERED order.",
+            when_to_use="Only after (1) the customer is verified via get_customer and (2) the order is confirmed via "
+            "lookup_order as delivered and belonging to that customer.",
+            when_to_not_use="Orders that are pending or shipped; unverified customers; refunds over $500 "
+            "(use escalate_to_human instead).",
+            returns_success="is_refunded=true plus refund_id, order_id, amount, status='processed'.",
+            returns_empty="is_refunded=false - the refund was rejected (order not found, not delivered, or amount "
+            "exceeds the total); message says why. Nothing was refunded - never tell the customer it "
+            "succeeded.",
+            input="refund_amount must be > 0 and <= the order total.",
+            example='{"order_id": "ORD-5502", "refund_amount": 59.99, "reason": "Laptop stand arrived damaged"}',
+        )
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -47,7 +49,7 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
             "content": {
                 "is_refunded": False,
                 "message": f"Order {order_id} not found. Cannot process refund.",
-            }
+            },
         }
 
     if order.get("status") != "delivered":
@@ -56,8 +58,8 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
             "content": {
                 "is_refunded": False,
                 "message": f"Order {order_id} has status '{order['status']}'. Refunds can only be processed for "
-                           f"delivered orders.",
-            }
+                f"delivered orders.",
+            },
         }
 
     if refund_amount > order["total"]:
@@ -66,7 +68,7 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
             "content": {
                 "is_refunded": False,
                 "message": f"Refund amount ${refund_amount:.2f} exceeds order total ${order['total']:.2f}.",
-            }
+            },
         }
 
     refund_record = {
@@ -87,5 +89,5 @@ def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> 
             "amount": refund_amount,
             "status": "processed",
             "message": f"Refund of ${refund_amount:.2f} processed successfully for order {order_id}.",
-        }
+        },
     }

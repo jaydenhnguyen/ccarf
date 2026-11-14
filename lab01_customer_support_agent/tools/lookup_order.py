@@ -3,19 +3,21 @@ from helpers.tool_helpers import Description, tool_description_template
 
 lookup_order_schema = {
     "name": "lookup_order",
-    "description": tool_description_template(Description(
-        intro="Look up a single order by order ID.",
-        when_to_use="To check order status or delivery, or to get the order total and owner before a refund "
-                    "(confirm the order's customer_id matches the verified customer).",
-        when_to_not_use="To look up a customer (use get_customer). Do not guess or invent an order ID - if the "
-                        "customer has not given one, ask them.",
-        returns_success="found=true plus order_id, customer_id (owner), items, total, status "
-                        "(pending/shipped/delivered), ordered_at, delivered_at.",
-        returns_empty="found=false - the order does not exist. Not a failure: do not retry, ask the customer to "
-                      "re-check the ID.",
-        returns_error="is_error - the lookup did not complete; do NOT tell the customer the order doesn't exist.",
-        example='{"order_id": "ORD-5501"}',
-    )),
+    "description": tool_description_template(
+        Description(
+            intro="Look up a single order by order ID.",
+            when_to_use="To check order status or delivery, or to get the order total and owner before a refund "
+            "(confirm the order's customer_id matches the verified customer).",
+            when_to_not_use="To look up a customer (use get_customer). Do not guess or invent an order ID - if the "
+            "customer has not given one, ask them.",
+            returns_success="found=true plus order_id, customer_id (owner), items, total, status "
+            "(pending/shipped/delivered), ordered_at, delivered_at.",
+            returns_empty="found=false - the order does not exist. Not a failure: do not retry, ask the customer to "
+            "re-check the ID.",
+            returns_error="is_error - the lookup did not complete; do NOT tell the customer the order doesn't exist.",
+            example='{"order_id": "ORD-5501"}',
+        )
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -39,9 +41,9 @@ def lookup_order_handler(order_id: str) -> dict:
                 "found": False,
                 "order_id": order_id,
                 "message": f"No order found for ID {order_id}. Verify the order ID with the customer.",
-            }
+            },
         }
-    
+
     return {
         "is_error": False,
         "content": {
@@ -53,5 +55,5 @@ def lookup_order_handler(order_id: str) -> dict:
             "status": order["status"],
             "ordered_at": order["ordered_at"],
             "delivered_at": order["delivered_at"],
-        }
+        },
     }

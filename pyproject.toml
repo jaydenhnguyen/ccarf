@@ -1,0 +1,22 @@
+[tool.ruff]
+line-length = 120                 # your code already wraps around 120
+target-version = "py312"          # match your venv's Python version
+src = [".", "lab01_customer_support_agent"]   # so import sorting knows your own modules
+extend-exclude = ["claude-certified-architect"]  # don't lint the cloned reference repo
+
+[tool.ruff.lint]
+select = [
+    "E", "W", # pycodestyle (style errors and warnings)
+    "F", # pyflakes: unused imports, undefined names (catches your unused is_thinking_block)
+    "I", # isort: import ordering
+    "B", # bugbear: likely bugs
+    "UP", # pyupgrade: modern syntax
+    "SIM", # simplifications
+    "N", # pep8-naming: would flag the MESSAGES local variable
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint.per-file-ignores]
+"lab01_customer_support_agent/main.py" = ["N806"]

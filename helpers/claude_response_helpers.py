@@ -1,4 +1,4 @@
-from anthropic.types import ThinkingBlock, ToolUseBlock, TextBlock
+from anthropic.types import TextBlock, ThinkingBlock, ToolUseBlock
 
 
 def is_text_block(block: ThinkingBlock | ToolUseBlock | TextBlock) -> bool:
