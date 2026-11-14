@@ -1,13 +1,20 @@
-import os
 import json
+import os
+
+from config import LOG_FILE, LOG_TO_STDERR, MAX_TURNS, MODEL, anthropic_client, console
 from constants.claude_stop_reasons import END_TURN, TOOL_USE
-from helpers.claude_response_helpers import is_text_block, is_tool_use_block, is_thinking_block
-from tools import ALL_TOOLS, TOOL_HANDLERS
-from config import anthropic_client, MAX_TURNS, console, MODEL, LOG_FILE, LOG_TO_STDERR
-from helpers.console_helpers import clear_screen, show_menu, print_final_answer, CYAN, RESET, DIM, RED, BOLD
 from helpers.agent_logger import (
-    logger, setup_agent_logger, log_user_query, log_iteration, log_response, log_tool_result, log_final_answer,
+    log_final_answer,
+    log_iteration,
+    log_response,
+    log_tool_result,
+    log_user_query,
+    logger,
+    setup_agent_logger,
 )
+from helpers.claude_response_helpers import is_text_block, is_tool_use_block
+from helpers.console_helpers import BOLD, CYAN, DIM, RED, RESET, clear_screen, print_final_answer, show_menu
+from tools import ALL_TOOLS, TOOL_HANDLERS
 
 TEST_QUERIES = [
     "Hi, I'm Maria Santos (CUST-1001). Can you check the status of my order ORD-5501?",
@@ -19,8 +26,7 @@ TEST_QUERIES = [
     # order not found
     "Hi, I'm Jayden, can you tell me what is the status for the order number ORD-2712?",
     # request refund for shipped order
-    "Hi, I'm Jack and my email is james.chen@example.com, I want to refund for order ORD-5504"
-
+    "Hi, I'm Jack and my email is james.chen@example.com, I want to refund for order ORD-5504",
 ]
 
 
@@ -40,7 +46,7 @@ def execute_tool(tool_name: str, tool_input: dict):
             "content": {
                 "is_tool_found": False,
                 "message": f"Unknown tool: {tool_name}",
-            }
+            },
         }
 
     return tool_handler(**tool_input)
@@ -49,10 +55,12 @@ def execute_tool(tool_name: str, tool_input: dict):
 def run_agent(user_input):
     system_prompt = load_system_prompt()
 
-    MESSAGES = [{
-        "role": "user",
-        "content": user_input,
-    }]
+    MESSAGES = [
+        {
+            "role": "user",
+            "content": user_input,
+        }
+    ]
 
     log_user_query(user_input)
 
@@ -62,11 +70,7 @@ def run_agent(user_input):
         try:
             with console.status("Processing request...", spinner="dots"):
                 response = anthropic_client.messages.create(
-                    model=MODEL,
-                    max_tokens=1024,
-                    system=system_prompt,
-                    tools=ALL_TOOLS,
-                    messages=MESSAGES
+                    model=MODEL, max_tokens=1024, system=system_prompt, tools=ALL_TOOLS, messages=MESSAGES
                 )
         except Exception as e:
             logger.exception("API call failed")
@@ -77,6 +81,7 @@ def run_agent(user_input):
             elif "usage limit" in error_msg or "rate limit" in error_msg:
                 # Extract the human-readable message from the error
                 import re
+
                 match = re.search(r'"message"\s*:\s*"([^"]+)"', str(e))
                 friendly_msg = match.group(1) if match else str(e)
                 print(f"\n{RED}{BOLD}{friendly_msg}{RESET}")
@@ -101,12 +106,14 @@ def run_agent(user_input):
                     tool_result = execute_tool(block.name, block.input)
                     log_tool_result(block.name, block.id, tool_result)
 
-                    tool_result_blocks.append({
-                        "is_error": bool(tool_result.get("is_error")),
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(tool_result.get("content")),
-                    })
+                    tool_result_blocks.append(
+                        {
+                            "is_error": bool(tool_result.get("is_error")),
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps(tool_result.get("content")),
+                        }
+                    )
 
             MESSAGES.append({"role": "assistant", "content": response.content})
             MESSAGES.append({"role": "user", "content": tool_result_blocks})

@@ -32,6 +32,7 @@ def setup_agent_logger(log_file: Path, level: int = logging.DEBUG, also_stderr: 
 # Formatting: one line per message / block instead of full JSON
 # ---------------------------------------------------------------------------
 
+
 def _short(value, limit: int = 100) -> str:
     """One-line, truncated representation of a str/dict/list."""
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
@@ -57,6 +58,7 @@ def _describe_message(message: dict) -> str:
 # ---------------------------------------------------------------------------
 # Log events
 # ---------------------------------------------------------------------------
+
 
 def log_user_query(user_input: str) -> None:
     logger.info("=" * 70)
@@ -89,8 +91,9 @@ def log_tool_result(tool_name: str, tool_use_id: str, result: dict) -> None:
     """result is the handler's {"is_error": bool, "content": {...}} wrapper."""
     content = result.get("content", {})
     if result.get("is_error"):
-        logger.warning("   ✗ %s id=…%s is_error=True: %s",
-                       tool_name, tool_use_id[-6:], _short(content.get("message", content)))
+        logger.warning(
+            "   ✗ %s id=…%s is_error=True: %s", tool_name, tool_use_id[-6:], _short(content.get("message", content))
+        )
     else:
         logger.info("   ✓ %s id=…%s %s", tool_name, tool_use_id[-6:], _short(content, 120))
 
