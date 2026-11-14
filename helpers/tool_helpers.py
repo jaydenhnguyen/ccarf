@@ -6,9 +6,9 @@ class Description:
     intro: str
     when_to_use: str
     when_to_not_use: str
-    returns_success: str               # required: every tool has a success result
-    returns_empty: str | None = None   # tool ran fine but found nothing (valid result, not an error)
-    returns_error: str | None = None   # tool could not complete (is_error result)
+    returns_success: str  # required: every tool has a success result
+    returns_empty: str | None = None  # tool ran fine but found nothing (valid result, not an error)
+    returns_error: str | None = None  # tool could not complete (is_error result)
     input: str | None = None
     example: str | None = None
     other: str | None = None

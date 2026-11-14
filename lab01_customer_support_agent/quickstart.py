@@ -41,7 +41,8 @@ response = client.messages.create(
     messages=[
         {
             "role": "user",
-            "content": "Schedule a 30-minute sync with alice@example.com and bob@example.com on Monday, March 30, 2026 at 10am.",
+            "content": "Schedule a 30-minute sync with alice@example.com and bob@example.com on Monday, March 30, "
+                       "2026 at 10am.",
         }
     ],
 )
