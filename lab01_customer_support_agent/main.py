@@ -3,7 +3,13 @@ import os
 from config import LOG_FILE, LOG_TO_STDERR, MAX_TURNS, MODEL, anthropic_client, console
 from constants.claude_stop_reasons import END_TURN, TOOL_USE
 from helpers.agent_logger import (
-    log_final_answer, log_iteration, log_response, log_tool_result, log_user_query, logger, setup_agent_logger,
+    log_final_answer,
+    log_iteration,
+    log_response,
+    log_tool_result,
+    log_user_query,
+    logger,
+    setup_agent_logger,
 )
 from helpers.claude_response_helpers import is_text_block, is_tool_use_block
 from helpers.console_helpers import CYAN, DIM, RESET, clear_screen, print_api_error, print_final_answer, show_menu
@@ -34,10 +40,12 @@ def load_system_prompt():
 def run_agent(user_input):
     system_prompt = load_system_prompt()
 
-    MESSAGES = [{
-        "role": "user",
-        "content": user_input,
-    }]
+    MESSAGES = [
+        {
+            "role": "user",
+            "content": user_input,
+        }
+    ]
 
     log_user_query(user_input)
     tool_call_counts: dict[str, int] = {}  # per run, for retry_by="model"
@@ -48,11 +56,7 @@ def run_agent(user_input):
         try:
             with console.status("Processing request...", spinner="dots"):
                 response = anthropic_client.messages.create(
-                    model=MODEL,
-                    max_tokens=1024,
-                    system=system_prompt,
-                    tools=ALL_TOOLS,
-                    messages=MESSAGES
+                    model=MODEL, max_tokens=1024, system=system_prompt, tools=ALL_TOOLS, messages=MESSAGES
                 )
         except Exception as e:
             logger.exception("API call failed")

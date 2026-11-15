@@ -1,5 +1,5 @@
 from data import ESCALATIONS_LOG
-from helpers.tool_helpers import Description, tool_description_template, ToolResult, RetryPolicy
+from helpers.tool_helpers import Description, RetryPolicy, ToolResult, tool_description_template
 
 escalate_to_human_schema = {
     "name": "escalate_to_human",
