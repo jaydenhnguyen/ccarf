@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from helpers.tool_helpers import ToolResult
+from core.tools.results import ToolResult
 
 logger = logging.getLogger("agent")
 

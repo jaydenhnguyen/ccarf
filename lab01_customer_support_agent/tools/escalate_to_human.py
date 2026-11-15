@@ -1,5 +1,6 @@
+from core.tools.description import Description, tool_description_template
+from core.tools.results import RetryPolicy, ToolResult
 from data import ESCALATIONS_LOG
-from helpers.tool_helpers import Description, RetryPolicy, ToolResult, tool_description_template
 
 escalate_to_human_schema = {
     "name": "escalate_to_human",

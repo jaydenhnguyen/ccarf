@@ -1,8 +1,7 @@
 import os
 
 from config import LOG_FILE, LOG_TO_STDERR, MAX_TURNS, MODEL, anthropic_client, console
-from constants.claude_stop_reasons import END_TURN, TOOL_USE
-from helpers.agent_logger import (
+from core.agent_logger import (
     log_final_answer,
     log_iteration,
     log_response,
@@ -11,10 +10,15 @@ from helpers.agent_logger import (
     logger,
     setup_agent_logger,
 )
-from helpers.claude_response_helpers import is_text_block, is_tool_use_block
-from helpers.console_helpers import CYAN, DIM, RESET, clear_screen, print_api_error, print_final_answer, show_menu
-from tool_executor import execute_tool, to_tool_result_block
-from tools import ALL_TOOLS
+from core.claude_blocks import is_text_block, is_tool_use_block
+from core.console import CYAN, DIM, RESET, clear_screen, print_api_error, print_final_answer, show_menu
+from core.stop_reasons import END_TURN, TOOL_USE
+from core.tools.executor import ToolExecutor, to_tool_result_block
+from tools import ALL_TOOLS, RETRY_POLICIES, TOOL_HANDLERS
+
+APP_TITLE = "Lab 01 - Customer Support Resolution Agent"
+
+tool_executor = ToolExecutor(TOOL_HANDLERS, RETRY_POLICIES)
 
 TEST_QUERIES = [
     "Hi, I'm Maria Santos (CUST-1001). Can you check the status of my order ORD-5501?",
@@ -48,7 +52,7 @@ def run_agent(user_input):
     ]
 
     log_user_query(user_input)
-    tool_call_counts: dict[str, int] = {}  # per run, for retry_by="model"
+    tool_call_counts: dict[str, int] = {}
 
     for i in range(MAX_TURNS):
         log_iteration(i + 1, MAX_TURNS, MESSAGES)
@@ -76,7 +80,7 @@ def run_agent(user_input):
 
             for block in response.content:
                 if is_tool_use_block(block):
-                    tool_result = execute_tool(block.name, block.input, tool_call_counts)
+                    tool_result = tool_executor.execute(block.name, block.input, tool_call_counts)
                     log_tool_result(block.name, block.id, tool_result)
 
                     tool_result_blocks.append(to_tool_result_block(block.id, tool_result))
@@ -96,7 +100,7 @@ def run_agent(user_input):
 def main():
     setup_agent_logger(LOG_FILE, also_stderr=LOG_TO_STDERR)
     clear_screen()
-    show_menu(TEST_QUERIES)
+    show_menu(APP_TITLE, TEST_QUERIES)
 
     while True:
         user_input = input(f"{CYAN}You > {RESET}").strip()
@@ -109,7 +113,7 @@ def main():
 
         if user_input.lower() == "c":
             clear_screen()
-            show_menu(TEST_QUERIES)
+            show_menu(APP_TITLE, TEST_QUERIES)
             continue
 
         if user_input.isdigit() and 1 <= int(user_input) <= len(TEST_QUERIES):
