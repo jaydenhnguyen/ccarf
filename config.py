@@ -16,3 +16,5 @@ console = Console()  # user-facing only
 # Developer monitoring log (see helpers/agent_logger.py). Follow with: tail -f logs/agent.log
 LOG_FILE = Path(__file__).parent / "logs" / "agent.log"
 LOG_TO_STDERR = os.getenv("AGENT_LOG_STDERR") == "1"
+
+SIMULATE_LOOKUP_TIMEOUT = os.getenv("SIMULATE_LOOKUP_TIMEOUT") == "1"
