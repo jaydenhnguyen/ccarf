@@ -1,7 +1,10 @@
+from context import ToolContext
 from core.tools.description import Description, tool_description_template
-from core.tools.errors import ToolBusinessError, ToolValidationError
-from core.tools.results import RetryPolicy, ToolResult
+from core.tools.errors import ToolBusinessError, ToolPermissionError, ToolValidationError
+from core.tools.results import ToolResult
+from core.tools.retry import RetryPolicy
 from data import ORDERS, REFUNDS_LOG
+from hooks.identity import require_active_account, require_verified_customer
 
 REFUND_AUTO_APPROVE_LIMIT = 500
 
@@ -10,15 +13,17 @@ process_refund_schema = {
     "description": tool_description_template(
         Description(
             intro="Issue a refund (full or partial) for a DELIVERED order.",
-            when_to_use="Only after (1) the customer is verified via get_customer and (2) the order is confirmed via "
-            "lookup_order as delivered and belonging to that customer.",
+            when_to_use="After the customer is verified via get_customer and the order is confirmed via lookup_order "
+            "as delivered.",
             when_to_not_use="Orders that are pending or shipped; unverified customers; refunds over $500 "
             "(use escalate_to_human instead).",
             returns_success="is_refunded=true plus refund_id, order_id, amount, status='processed'.",
             returns_error="is_error - NOTHING was refunded; never tell the customer it succeeded. "
-            "validation: order not found or amount exceeds the order total - fix with the customer, then call "
-            "again. business: refund not allowed by policy - do NOT retry; if the message says to escalate "
-            "(refunds over $500), call escalate_to_human, otherwise explain using the message.",
+            "validation: order not found or amount exceeds the order total - fix with the customer, then call again. "
+            "permission: no verified customer (call get_customer first) or the order belongs to another customer "
+            "(do not retry; never refund another customer's order). "
+            "business: refund not allowed by policy (order not delivered, over $500, or account not active) - "
+            "do NOT retry; if requires_escalation=true call escalate_to_human, otherwise explain using the message.",
             input="refund_amount must be > 0 and <= the order total. Refunds over $500 are not processed here.",
             example='{"order_id": "ORD-5502", "refund_amount": 59.99, "reason": "Laptop stand arrived damaged"}',
         )
@@ -47,11 +52,21 @@ process_refund_schema = {
 
 process_refund_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
 
+# Order matter
+process_refund_pre_hooks = [require_verified_customer, require_active_account]
 
-def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> ToolResult:
+
+def process_refund_handler(_ctx: ToolContext, order_id: str, refund_amount: float, reason: str) -> ToolResult:
     order = ORDERS.get(order_id)
     if order is None:
         raise ToolValidationError(f"Order {order_id} not found. Re-check the ID with the customer.", order_id=order_id)
+
+    if order["customer_id"] != _ctx.customer_id:
+        raise ToolPermissionError(
+            message=f"order {order_id} does not belong to customer {_ctx.customer_id}",
+            order_id=order_id,
+            customer_id=_ctx.customer_id,
+        )
 
     if order["status"] != "delivered":
         raise ToolBusinessError(
