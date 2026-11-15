@@ -1,4 +1,5 @@
 import os
+import re
 
 from rich.console import Console
 from rich.panel import Panel
@@ -27,3 +28,19 @@ def show_menu(test_queries):
 
 def print_final_answer(console: Console, text: str) -> None:
     console.print(Panel(text or "[dim](no text)[/dim]", title="Agent", border_style="green"))
+
+
+def print_api_error(error: Exception) -> None:
+    """User-facing message for a failed Anthropic API call (details go to the log separately)."""
+    error_msg = str(error).lower()
+    if "credit" in error_msg or "balance" in error_msg:
+        print(f"\n{RED}{BOLD}API credit balance is too low.{RESET}")
+        print(f"{DIM}Add credits at https://console.anthropic.com{RESET}")
+    elif "usage limit" in error_msg or "rate limit" in error_msg:
+        # Extract the human-readable message from the error
+        match = re.search(r'"message"\s*:\s*"([^"]+)"', str(error))
+        friendly_msg = match.group(1) if match else str(error)
+        print(f"\n{RED}{BOLD}{friendly_msg}{RESET}")
+        print(f"{DIM}Check your limits at https://console.anthropic.com{RESET}")
+    else:
+        print(f"\n{RED}{BOLD}Error: {error}{RESET}")

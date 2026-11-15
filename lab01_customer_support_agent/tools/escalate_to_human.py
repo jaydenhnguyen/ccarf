@@ -1,5 +1,5 @@
 from data import ESCALATIONS_LOG
-from helpers.tool_helpers import Description, tool_description_template
+from helpers.tool_helpers import Description, tool_description_template, ToolResult, RetryPolicy
 
 escalate_to_human_schema = {
     "name": "escalate_to_human",
@@ -47,8 +47,10 @@ escalate_to_human_schema = {
     },
 }
 
+escalate_to_human_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
 
-def escalate_to_human_handler(customer_id: str, reason: str, summary: str, recommended_action=None) -> dict:
+
+def escalate_to_human_handler(customer_id: str, reason: str, summary: str, recommended_action=None) -> ToolResult:
     escalation_record = {
         "escalation_id": f"ESC-{len(ESCALATIONS_LOG) + 9001}",
         "customer_id": customer_id,

@@ -1,5 +1,5 @@
 from data import ORDERS, REFUNDS_LOG
-from helpers.tool_helpers import Description, tool_description_template
+from helpers.tool_helpers import Description, tool_description_template, ToolResult, RetryPolicy
 
 process_refund_schema = {
     "name": "process_refund",
@@ -40,8 +40,10 @@ process_refund_schema = {
     },
 }
 
+process_refund_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
 
-def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> dict:
+
+def process_refund_handler(order_id: str, refund_amount: float, reason: str) -> ToolResult:
     order = ORDERS.get(order_id)
     if order is None:
         return {
