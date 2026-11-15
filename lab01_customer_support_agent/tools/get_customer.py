@@ -1,21 +1,23 @@
 from constants.error_categories import VALIDATION
 from data import CUSTOMERS, CUSTOMERS_BY_EMAIL
-from helpers.tool_helpers import tool_description_template, Description, ToolResult, RetryPolicy
+from helpers.tool_helpers import Description, RetryPolicy, ToolResult, tool_description_template
 
 get_customer_schema = {
     "name": "get_customer",
-    "description": tool_description_template(Description(
-        intro="Look up a customer record by customer ID or email address.",
-        when_to_use="FIRST, before any account action (refund, escalation) - identity must be verified before "
-                    "process_refund.",
-        when_to_not_use="To find orders (use lookup_order). Do not guess an ID or email - ask the customer.",
-        returns_success="found=true plus customer_id, name, email, account_status, tier.",
-        returns_empty="found=false - no customer matches that ID/email. Not a failure: do not retry with the same "
-                      "value; ask the customer to re-check it or offer the other identifier.",
-        returns_error="is_error - the input was invalid (neither or both of customer_id/email); fix the input.",
-        input="Provide exactly ONE of customer_id or email.",
-        example='{"customer_id": "CUST-1001"} or {"email": "maria.santos@example.com"}',
-    )),
+    "description": tool_description_template(
+        Description(
+            intro="Look up a customer record by customer ID or email address.",
+            when_to_use="FIRST, before any account action (refund, escalation) - identity must be verified before "
+            "process_refund.",
+            when_to_not_use="To find orders (use lookup_order). Do not guess an ID or email - ask the customer.",
+            returns_success="found=true plus customer_id, name, email, account_status, tier.",
+            returns_empty="found=false - no customer matches that ID/email. Not a failure: do not retry with the same "
+            "value; ask the customer to re-check it or offer the other identifier.",
+            returns_error="is_error - the input was invalid (neither or both of customer_id/email); fix the input.",
+            input="Provide exactly ONE of customer_id or email.",
+            example='{"customer_id": "CUST-1001"} or {"email": "maria.santos@example.com"}',
+        )
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
@@ -26,9 +28,9 @@ get_customer_schema = {
             "email": {
                 "type": "string",
                 "description": "The customer's email address. Provide this OR customer_id, not both.",
-            }
-        }
-    }
+            },
+        },
+    },
 }
 
 get_customer_retry_policy: RetryPolicy = {"retry_by": "code", "max_attempts": 3}
@@ -44,7 +46,7 @@ def get_customer_handler(customer_id: str | None = None, email: str | None = Non
             "is_retryable": False,
             "content": {
                 "message": "Provide exactly one of customer_id or email.",
-            }
+            },
         }
 
     if customer_id is not None:
@@ -56,10 +58,7 @@ def get_customer_handler(customer_id: str | None = None, email: str | None = Non
         lookup_key, value = ("customer_id", customer_id) if customer_id else ("email", email)
         return {
             "is_error": False,
-            "content": {
-                "found": False,
-                lookup_key: value, "message": f"No customer found for {lookup_key}: {value}"
-            },
+            "content": {"found": False, lookup_key: value, "message": f"No customer found for {lookup_key}: {value}"},
         }
 
     return {
@@ -71,5 +70,5 @@ def get_customer_handler(customer_id: str | None = None, email: str | None = Non
             "email": customer["email"],
             "account_status": customer["account_status"],
             "tier": customer["tier"],
-        }
+        },
     }
