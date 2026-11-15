@@ -17,8 +17,8 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def show_menu(test_queries):
-    print(f"{BOLD}Lab 01 - Customer Support Resolution Agent{RESET}\n")
+def show_menu(title: str, test_queries: list[str]) -> None:
+    print(f"{BOLD}{title}{RESET}\n")
     for i, query in enumerate(test_queries, 1):
         print(f"  {DIM}{i}. {query}{RESET}")
     print(f"  {DIM}c. Clear screen{RESET}")

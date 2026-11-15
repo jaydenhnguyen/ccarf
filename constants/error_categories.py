@@ -1,5 +1,0 @@
-VALIDATION = "validation"
-TRANSIENT = "transient"
-BUSINESS = "business"
-PERMISSION = "permission"
-INTERNAL = "internal"
