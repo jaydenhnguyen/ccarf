@@ -1,75 +1,95 @@
-import json
-import time
 from collections.abc import Callable
+from functools import partial
 
 from core.agent_logger import logger
 from core.tools.errors import INTERNAL, TRANSIENT, VALIDATION, ToolError
-from core.tools.results import DEFAULT_RETRY_POLICY, RetryPolicy, ToolResult
+from core.tools.hooks import PostHook, PreHook, ToolHandler
+from core.tools.results import ToolResult
+from core.tools.retry import DEFAULT_RETRY_POLICY, RetryPolicy, run_with_policy
+from core.tools.session import ToolSession
 
-RETRY_BASE_DELAY_SECONDS = 0.5
 
-ToolHandler = Callable[..., ToolResult]
-
-
-class ToolExecutor:
-    def __init__(self, handlers: dict[str, ToolHandler], retry_policies: dict[str, RetryPolicy] | None = None):
+class ToolExecutor[S: ToolSession, C]:
+    def __init__(
+        self,
+        handlers: dict[str, ToolHandler],
+        retry_policies: dict[str, RetryPolicy] | None = None,
+        pre_hooks: dict[str, list[PreHook[S]]] | None = None,
+        post_hooks: dict[str, list[PostHook[S]]] | None = None,
+        *,
+        context_factory: Callable[[S], C],
+    ):
         self.handlers = handlers
         self.retry_policies = retry_policies or {}
+        self.pre_hooks = pre_hooks or {}
+        self.post_hooks = post_hooks or {}
+        self.context_factory = context_factory
 
-    def execute(self, tool_name: str, tool_input: dict, call_counts: dict[str, int]) -> ToolResult:
-        tool_handler = self.handlers.get(tool_name)
-
-        if not tool_handler:
+    def execute(self, tool_name: str, tool_input: dict, session: S) -> ToolResult:
+        handler = self.handlers.get(tool_name)
+        if not handler:
             return {
                 "is_error": True,
                 "error_category": VALIDATION,
                 "is_retryable": False,
-                "content": {
-                    "is_tool_found": False,
-                    "message": f"Unknown tool: {tool_name}",
-                },
+                "content": {"is_tool_found": False, "message": f"Unknown tool: {tool_name}"},
             }
 
-        policy = self.retry_policies.get(tool_name, DEFAULT_RETRY_POLICY)
-        call_counts[tool_name] = call_counts.get(tool_name, 0) + 1
+        # PRE HOOKS
+        if blocked := self._run_pre_hooks(tool_name, tool_input, session):
+            return blocked
 
-        if policy["retry_by"] == "code":
-            return _run_with_code_retry(tool_name, tool_handler, tool_input, policy["max_attempts"])
-        if policy["retry_by"] == "model":
-            return _run_with_model_retry(
-                tool_name, tool_handler, tool_input, policy["max_attempts"], call_counts[tool_name]
-            )
-        return _run_once(tool_name, tool_handler, tool_input)
+        # Context built per call, after pre-hooks, so it reflects facts recorded by earlier calls
+        ctx = self.context_factory(session)
+
+        # increase the number of call for the tool
+        session.call_counts[tool_name] = session.call_counts.get(tool_name, 0) + 1
+
+        # get retry policy
+        retry_policy = self.retry_policies.get(tool_name, DEFAULT_RETRY_POLICY)
+
+        # MAIN
+        result = run_with_policy(
+            tool_name,
+            partial(_call_handler, tool_name, handler, ctx, tool_input),
+            retry_policy,
+            session.call_counts[tool_name],
+        )
+
+        # POST HOOKS
+        self._run_post_hooks(tool_name, result, session)
+        return result
+
+    def _run_pre_hooks(self, tool_name: str, tool_input: dict, session: S) -> ToolResult | None:
+        for hook in self.pre_hooks.get(tool_name, []):
+            try:
+                hook(tool_input, session)
+            except ToolError as e:
+                logger.info("   ⛔ %s blocked by %s: %s", tool_name, hook.__name__, e.message)
+                return e.to_result()
+            except Exception:
+                logger.exception("   ! pre-hook %s crashed for %s", hook.__name__, tool_name)
+                return {
+                    "is_error": True,
+                    "error_category": INTERNAL,
+                    "is_retryable": False,
+                    "content": {"message": f"{tool_name} could not be authorized due to an internal error."},
+                }
+        return None
+
+    def _run_post_hooks(self, tool_name: str, result: ToolResult, session: S) -> None:
+        for hook in self.post_hooks.get(tool_name, []):
+            try:
+                hook(result, session)
+            except Exception:
+                logger.exception("   ! post-hook %s crashed for %s", hook.__name__, tool_name)
 
 
-def to_tool_result_block(tool_use_id: str, result: ToolResult) -> dict:
-    error_fields = (
-        {
-            "error_category": result["error_category"],
-            "is_retryable": result["is_retryable"],
-        }
-        if result["is_error"]
-        else {}
-    )
-
-    return {
-        "type": "tool_result",
-        "tool_use_id": tool_use_id,
-        "is_error": result["is_error"],
-        "content": json.dumps({**result["content"], **error_fields}),
-    }
-
-
-def _call_handler(tool_name: str, handler: ToolHandler, tool_input: dict) -> ToolResult:
+def _call_handler[C](tool_name: str, handler: ToolHandler, ctx: C, tool_input: dict) -> ToolResult:
     try:
-        return handler(**tool_input)
+        return handler(ctx, **tool_input)
     except ToolError as e:
-        return {
-            "is_error": True,
-            "error_category": e.category,
-            "is_retryable": e.retryable,
-            "content": {**e.details, "message": e.message},
-        }
+        return e.to_result()
     except TypeError as e:
         logger.warning("   ! %s called with invalid arguments: %s", tool_name, e)
         return {
@@ -93,54 +113,3 @@ def _call_handler(tool_name: str, handler: ToolHandler, tool_input: dict) -> Too
             "is_retryable": False,
             "content": {"message": f"{tool_name} failed due to an internal error."},
         }
-
-
-def _is_transient(result: ToolResult) -> bool:
-    return result["is_error"] and result["error_category"] == TRANSIENT and result["is_retryable"]
-
-
-def _run_with_code_retry(tool_name: str, handler: ToolHandler, tool_input: dict, max_attempts: int) -> ToolResult:
-    for attempt in range(1, max_attempts + 1):
-        result = _call_handler(tool_name, handler, tool_input)
-        if not _is_transient(result):
-            return result
-        if attempt < max_attempts:
-            delay = RETRY_BASE_DELAY_SECONDS * 2 ** (attempt - 1)
-            logger.info(
-                "   ↻ %s transient error, code retry %d/%d in %.1fs", tool_name, attempt + 1, max_attempts, delay
-            )
-            time.sleep(delay)
-
-    result["is_retryable"] = False
-    result["content"]["attempts"] = max_attempts
-    return result
-
-
-def _run_with_model_retry(
-    tool_name: str, handler: ToolHandler, tool_input: dict, max_attempts: int, attempt: int
-) -> ToolResult:
-    if attempt > max_attempts:
-        return {
-            "is_error": True,
-            "error_category": TRANSIENT,
-            "is_retryable": False,
-            "content": {
-                "attempt": attempt,
-                "max_attempts": max_attempts,
-                "message": f"{tool_name} retry limit reached ({max_attempts}). Do not call it again.",
-            },
-        }
-
-    result = _call_handler(tool_name, handler, tool_input)
-    if _is_transient(result):
-        result["is_retryable"] = attempt < max_attempts
-        result["content"]["attempt"] = attempt
-        result["content"]["max_attempts"] = max_attempts
-    return result
-
-
-def _run_once(tool_name: str, handler: ToolHandler, tool_input: dict) -> ToolResult:
-    result = _call_handler(tool_name, handler, tool_input)
-    if result["is_error"]:
-        result["is_retryable"] = False
-    return result

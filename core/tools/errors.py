@@ -1,3 +1,5 @@
+from core.tools.results import ToolErrorResult
+
 VALIDATION = "validation"  # bad or impossible input - Claude fixes the input
 TRANSIENT = "transient"  # temporary failure, result unknown - code may retry
 BUSINESS = "business"  # valid request, blocked by policy - do not retry
@@ -13,6 +15,14 @@ class ToolError(Exception):
         super().__init__(message)
         self.message = message
         self.details = details
+
+    def to_result(self) -> ToolErrorResult:
+        return {
+            "is_error": True,
+            "error_category": self.category,
+            "is_retryable": self.retryable,
+            "content": {**self.details, "message": self.message},
+        }
 
 
 class ToolValidationError(ToolError):
