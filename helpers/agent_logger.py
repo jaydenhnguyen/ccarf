@@ -34,6 +34,7 @@ def setup_agent_logger(log_file: Path, level: int = logging.DEBUG, also_stderr: 
 # Formatting: one line per message / block instead of full JSON
 # ---------------------------------------------------------------------------
 
+
 def _short(value, limit: int = 100) -> str:
     """One-line, truncated representation of a str/dict/list."""
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
@@ -59,6 +60,7 @@ def _describe_message(message: dict) -> str:
 # ---------------------------------------------------------------------------
 # Log events
 # ---------------------------------------------------------------------------
+
 
 def log_user_query(user_input: str) -> None:
     logger.info("=" * 70)

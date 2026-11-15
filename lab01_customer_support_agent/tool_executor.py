@@ -2,11 +2,10 @@ import json
 import time
 from collections.abc import Callable
 
-from tools import RETRY_POLICIES, TOOL_HANDLERS
-
 from constants.error_categories import TRANSIENT, VALIDATION
 from helpers.agent_logger import logger
 from helpers.tool_helpers import DEFAULT_RETRY_POLICY, ToolResult
+from tools import RETRY_POLICIES, TOOL_HANDLERS
 
 RETRY_BASE_DELAY_SECONDS = 0.5
 
@@ -79,7 +78,7 @@ def _run_with_code_retry(tool_name: str, handler: ToolHandler, tool_input: dict,
 
 
 def _run_with_model_retry(
-  tool_name: str, handler: ToolHandler, tool_input: dict, max_attempts: int, attempt: int
+    tool_name: str, handler: ToolHandler, tool_input: dict, max_attempts: int, attempt: int
 ) -> ToolResult:
     if attempt > max_attempts:
         return {
