@@ -1,27 +1,6 @@
-from typing import Any, Literal, NotRequired, TypedDict
+"""Builds a consistent tool description string from structured fields."""
 
-
-class ToolSuccess(TypedDict):
-    is_error: Literal[False]
-    content: dict[str, Any]
-
-
-class ToolError(TypedDict):
-    is_error: Literal[True]
-    error_category: str
-    is_retryable: bool
-    content: dict[str, Any]
-
-
-ToolResult = ToolSuccess | ToolError
-
-
-class RetryPolicy(TypedDict):
-    retry_by: Literal["code", "model", "none"]
-    max_attempts: int
-
-
-DEFAULT_RETRY_POLICY: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
+from typing import NotRequired, TypedDict
 
 
 class Description(TypedDict):

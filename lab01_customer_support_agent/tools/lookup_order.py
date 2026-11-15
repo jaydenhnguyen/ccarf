@@ -1,7 +1,8 @@
 from config import SIMULATE_LOOKUP_TIMEOUT
-from constants.error_categories import TRANSIENT
+from core.tools.description import Description, tool_description_template
+from core.tools.errors import ToolTransientError
+from core.tools.results import RetryPolicy, ToolResult
 from data import ORDERS
-from helpers.tool_helpers import Description, RetryPolicy, ToolResult, tool_description_template
 
 lookup_order_schema = {
     "name": "lookup_order",
@@ -38,15 +39,7 @@ lookup_order_retry_policy: RetryPolicy = {"retry_by": "code", "max_attempts": 3}
 
 def lookup_order_handler(order_id: str) -> ToolResult:
     if SIMULATE_LOOKUP_TIMEOUT:
-        return {
-            "is_error": True,
-            "error_category": TRANSIENT,
-            "is_retryable": True,  # set False to test the try attempt count
-            "content": {
-                "order_id": order_id,
-                "message": "Took too long for querying the DB",
-            },
-        }
+        raise ToolTransientError(message="Took too long for querying the DB", order_id=order_id)
 
     order = ORDERS.get(order_id)
     if not order:

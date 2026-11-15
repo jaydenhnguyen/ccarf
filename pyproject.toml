@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 120                 # your code already wraps around 120
-target-version = "py312"          # match your venv's Python version
+target-version = "py314"          # match your venv's Python version
 src = [".", "lab01_customer_support_agent"]   # so import sorting knows your own modules
 extend-exclude = ["claude-certified-architect"]  # don't lint the cloned reference repo
 
