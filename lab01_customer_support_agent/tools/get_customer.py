@@ -1,21 +1,25 @@
 import re
 
 from config import SIMULATE_CUSTOMER_TIMEOUT
+from context import ToolContext
 from core.tools.description import Description, tool_description_template
 from core.tools.errors import ToolTransientError, ToolValidationError
-from core.tools.results import RetryPolicy, ToolResult
+from core.tools.results import ToolResult
+from core.tools.retry import RetryPolicy
 from data import CUSTOMERS, CUSTOMERS_BY_EMAIL
+from hooks.identity import add_verified_customer_record_to_session
 
 get_customer_schema = {
     "name": "get_customer",
     "description": tool_description_template(
         Description(
             intro="Look up a customer record by customer ID or email address.",
-            when_to_use="FIRST, before any account action (refund, escalation) - identity must be verified before "
-            "process_refund.",
+            when_to_use="FIRST, before lookup_order or process_refund - both require a verified customer in this "
+            "conversation.",
             when_to_not_use="To find orders (use lookup_order). Do not guess an ID or email - ask the customer.",
-            returns_success="found=true plus customer_id, name, email, account_status, tier. If account_status "
-            "is not 'active', do not process refunds; explain and offer to escalate.",
+            returns_success="found=true plus customer_id, name, email, account_status, tier. The customer is now "
+            "verified for this conversation. If account_status is not 'active', refunds will be blocked; explain and "
+            "offer to escalate.",
             returns_empty="found=false - no customer matches that ID/email. Not a failure: do not retry with the same "
             "value; ask the customer to re-check it or offer the other identifier.",
             returns_error="is_error - validation: invalid input (neither or both identifiers, or a malformed "
@@ -42,11 +46,14 @@ get_customer_schema = {
 
 get_customer_retry_policy: RetryPolicy = {"retry_by": "code", "max_attempts": 3}
 
+# order matter
+get_customer_post_hooks = [add_verified_customer_record_to_session]
+
 CUSTOMER_ID_PATTERN = re.compile(r"^CUST-\d{4}$")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def get_customer_handler(customer_id: str | None = None, email: str | None = None) -> ToolResult:
+def get_customer_handler(_ctx: ToolContext, customer_id: str | None = None, email: str | None = None) -> ToolResult:
     if (customer_id is None) == (email is None):
         raise ToolValidationError("Provide exactly one of customer_id or email, not both or neither.")
 

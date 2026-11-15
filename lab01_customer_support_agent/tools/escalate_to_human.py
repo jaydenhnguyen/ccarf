@@ -1,5 +1,7 @@
+from context import ToolContext
 from core.tools.description import Description, tool_description_template
-from core.tools.results import RetryPolicy, ToolResult
+from core.tools.results import ToolResult
+from core.tools.retry import RetryPolicy
 from data import ESCALATIONS_LOG
 
 escalate_to_human_schema = {
@@ -51,7 +53,9 @@ escalate_to_human_schema = {
 escalate_to_human_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
 
 
-def escalate_to_human_handler(customer_id: str, reason: str, summary: str, recommended_action=None) -> ToolResult:
+def escalate_to_human_handler(
+    _ctx: ToolContext, customer_id: str, reason: str, summary: str, recommended_action=None
+) -> ToolResult:
     escalation_record = {
         "escalation_id": f"ESC-{len(ESCALATIONS_LOG) + 9001}",
         "customer_id": customer_id,
