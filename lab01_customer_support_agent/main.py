@@ -1,6 +1,7 @@
 import os
 
 from config import LOG_FILE, LOG_TO_STDERR, MAX_TURNS, MODEL, anthropic_client, console
+from context import ToolContext, build_tool_context
 from core.agent_logger import (
     log_final_answer,
     log_iteration,
@@ -10,15 +11,18 @@ from core.agent_logger import (
     logger,
     setup_agent_logger,
 )
-from core.claude_blocks import is_text_block, is_tool_use_block
+from core.claude_blocks import is_text_block, is_tool_use_block, to_tool_result_block
 from core.console import CYAN, DIM, RESET, clear_screen, print_api_error, print_final_answer, show_menu
 from core.stop_reasons import END_TURN, TOOL_USE
-from core.tools.executor import ToolExecutor, to_tool_result_block
-from tools import ALL_TOOLS, RETRY_POLICIES, TOOL_HANDLERS
+from core.tools.executor import ToolExecutor
+from session import AgentSession
+from tools import ALL_TOOLS, POST_HOOKS, PRE_HOOKS, RETRY_POLICIES, TOOL_HANDLERS
 
 APP_TITLE = "Lab 01 - Customer Support Resolution Agent"
 
-tool_executor = ToolExecutor(TOOL_HANDLERS, RETRY_POLICIES)
+tool_executor = ToolExecutor[AgentSession, ToolContext](
+    TOOL_HANDLERS, RETRY_POLICIES, PRE_HOOKS, POST_HOOKS, context_factory=build_tool_context
+)
 
 TEST_QUERIES = [
     "Hi, I'm Maria Santos (CUST-1001). Can you check the status of my order ORD-5501?",
@@ -31,6 +35,8 @@ TEST_QUERIES = [
     "Hi, I'm Jayden, can you tell me what is the status for the order number ORD-2712?",
     # request refund for shipped order
     "Hi, I'm Jack and my email is james.chen@example.com, I want to refund for order ORD-5504",
+    # order not belong to requesting user
+    "Hi, I'm Jack and my email is james.chen@example.com, Can you check the status of my order ORD-5501?",
 ]
 
 
@@ -52,7 +58,7 @@ def run_agent(user_input):
     ]
 
     log_user_query(user_input)
-    tool_call_counts: dict[str, int] = {}
+    session = AgentSession()  # fresh per conversation: starts unverified
 
     for i in range(MAX_TURNS):
         log_iteration(i + 1, MAX_TURNS, MESSAGES)
@@ -80,7 +86,7 @@ def run_agent(user_input):
 
             for block in response.content:
                 if is_tool_use_block(block):
-                    tool_result = tool_executor.execute(block.name, block.input, tool_call_counts)
+                    tool_result = tool_executor.execute(block.name, block.input, session)
                     log_tool_result(block.name, block.id, tool_result)
 
                     tool_result_blocks.append(to_tool_result_block(block.id, tool_result))
