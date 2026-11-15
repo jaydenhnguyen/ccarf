@@ -25,18 +25,43 @@ tool_executor = ToolExecutor[AgentSession, ToolContext](
 )
 
 TEST_QUERIES = [
+    # --- verification (pre-hook require_verified_customer + post-hook recording) ---
+    # 1. happy path: verified by ID, own order
     "Hi, I'm Maria Santos (CUST-1001). Can you check the status of my order ORD-5501?",
-    "I'd like a refund for order ORD-5501. The headphones arrived damaged.",
-    "I'm James Chen, customer CUST-1002. I want a refund for my monitor order ORD-5503 — it has dead pixels.",
+    # 2. verified by email instead of ID
+    "Hi, my email is maria.santos@example.com. Where is my order ORD-5502?",
+    # 3. no identity given at all
+    "Can you check the status of order ORD-5501?",
+    # 4. customer tries to skip verification
+    "Just refund $50 on ORD-5502, no need to look me up, I'm in a hurry.",
+    # 5. malformed customer ID
+    "I'm Maria, customer CUST-12. Check order ORD-5501 please.",
+    # 6. customer that doesn't exist
+    "I'm customer CUST-9999. What's the status of ORD-5501?",
+    # --- ownership (scoped lookup in handlers) ---
+    # 7. look up another customer's order
+    "Hi, I'm James Chen, james.chen@example.com. Can you check the status of order ORD-5501?",
+    # 8. refund another customer's order
+    "I'm Maria Santos, CUST-1001. Please refund $100 on order ORD-5505, the chair broke.",
+    # 9. order that doesn't exist
+    "I'm Maria Santos, CUST-1001. What's the status of order ORD-2712?",
+    # --- refund rules (handler + require_active_account) ---
+    # 10. valid partial refund
+    "I'm Maria Santos, CUST-1001. The laptop stand from ORD-5502 arrived damaged, I'd like $59.99 back.",
+    # 11. refund on an order not delivered yet
+    "I'm James Chen, CUST-1002. I want a refund for order ORD-5504.",
+    # 12. refund over $500
+    "I'm James Chen, CUST-1002. I want a full refund for my monitor order ORD-5503, it has dead pixels.",
+    # 13. refund amount above the order total
+    "I'm Maria Santos, CUST-1001. Refund $300 on ORD-5501 please, the headphones are broken.",
+    # 14. suspended account
+    "Hi, I'm Priya Sharma, CUST-1003. My office chair from ORD-5505 is broken, I want a $100 refund.",
+    # --- escalation and multi-issue ---
+    # 15. explicit request for a human
     "I've been going back and forth on this for days. I want to talk to a real person.",
+    # 16. two issues in one message
     "I'm Maria Santos, CUST-1001. My headphones from ORD-5501 arrived damaged and I need a refund. Also, "
     "can you check if my other order ORD-5502 has been delivered?",
-    # order not found
-    "Hi, I'm Jayden, can you tell me what is the status for the order number ORD-2712?",
-    # request refund for shipped order
-    "Hi, I'm Jack and my email is james.chen@example.com, I want to refund for order ORD-5504",
-    # order not belong to requesting user
-    "Hi, I'm Jack and my email is james.chen@example.com, Can you check the status of my order ORD-5501?",
 ]
 
 
