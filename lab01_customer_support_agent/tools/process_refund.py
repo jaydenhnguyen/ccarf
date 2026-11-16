@@ -4,6 +4,7 @@ from core.tools.errors import ToolBusinessError, ToolPermissionError, ToolValida
 from core.tools.results import ToolResult
 from core.tools.retry import RetryPolicy
 from data import ORDERS, REFUNDS_LOG
+from hooks.case_facts import add_refund_to_case_facts
 from hooks.identity import require_active_account, require_verified_customer
 
 REFUND_AUTO_APPROVE_LIMIT = 500
@@ -54,6 +55,7 @@ process_refund_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 
 
 # Order matter
 process_refund_pre_hooks = [require_verified_customer, require_active_account]
+process_refund_post_hooks = [add_refund_to_case_facts]
 
 
 def process_refund_handler(_ctx: ToolContext, order_id: str, refund_amount: float, reason: str) -> ToolResult:
@@ -97,6 +99,7 @@ def process_refund_handler(_ctx: ToolContext, order_id: str, refund_amount: floa
         "order_id": order_id,
         "amount": refund_amount,
         "reason": reason,
+        "order_total": order["total"],
         "status": "processed",
     }
     REFUNDS_LOG.append(refund_record)
@@ -108,6 +111,7 @@ def process_refund_handler(_ctx: ToolContext, order_id: str, refund_amount: floa
             "refund_id": refund_record["refund_id"],
             "order_id": order_id,
             "amount": refund_amount,
+            "order_total": refund_record["order_total"],
             "status": "processed",
             "message": f"Refund of ${refund_amount:.2f} processed successfully for order {order_id}.",
         },

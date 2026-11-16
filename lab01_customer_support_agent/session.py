@@ -1,14 +1,9 @@
-from dataclasses import dataclass
-from typing import TypedDict
+from dataclasses import dataclass, field
 
+from case_fact import CaseFacts
 from core.tools.session import ToolSession
-
-
-class VerifiedCustomer(TypedDict):
-    customer_id: str
-    account_status: str
 
 
 @dataclass
 class AgentSession(ToolSession):
-    verified_customer: VerifiedCustomer | None = None
+    case_facts: CaseFacts = field(default_factory=CaseFacts)
