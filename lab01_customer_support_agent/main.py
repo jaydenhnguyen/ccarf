@@ -62,6 +62,8 @@ TEST_QUERIES = [
     # 16. two issues in one message
     "I'm Maria Santos, CUST-1001. My headphones from ORD-5501 arrived damaged and I need a refund. Also, "
     "can you check if my other order ORD-5502 has been delivered?",
+    # 17. frustrated customer, simple issue
+    "Ugh, this is ridiculous! I'm Maria Santos, CUST-1001, and I still don't know if ORD-5501 ever arrived!",
 ]
 
 
