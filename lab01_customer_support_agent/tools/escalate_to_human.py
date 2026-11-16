@@ -1,11 +1,11 @@
+from case_fact import ESCALATION_REASONS
 from context import ToolContext
 from core.agent_logger import logger
 from core.tools.description import Description, tool_description_template
 from core.tools.results import ToolResult
 from core.tools.retry import RetryPolicy
 from data import ESCALATIONS_LOG
-
-ESCALATION_REASONS = ["customer_request", "policy_limit", "account_issue", "repeated_failure", "fraud"]
+from hooks.case_facts import add_escalation_to_case_facts
 
 escalate_to_human_schema = {
     "name": "escalate_to_human",
@@ -24,8 +24,8 @@ escalate_to_human_schema = {
             "claimed_identity only when the customer is not verified; never invent one.",
             example='{"reason": "policy_limit", "customer_request": "Full refund of $649.99 for ORD-5503 - 4K '
             'monitor has dead pixels.", "order_ids": ["ORD-5503"], "actions_taken": ["lookup_order ORD-5503: '
-            'delivered, $649.99", "process_refund $649.99: blocked, over the $500 limit"], "recommended_action": '
-            '"Approve the full refund once the return is received."}',
+            'delivered, $649.99", "process_refund $649.99: blocked, over the $500 limit"], '
+            '"recommended_action": "Approve the full refund once the return is received."}',
         )
     ),
     "input_schema": {
@@ -66,6 +66,8 @@ escalate_to_human_schema = {
 
 escalate_to_human_retry_policy: RetryPolicy = {"retry_by": "none", "max_attempts": 1}
 
+escalate_to_human_post_hooks = [add_escalation_to_case_facts]
+
 
 def escalate_to_human_handler(
     ctx: ToolContext,
@@ -105,6 +107,7 @@ def escalate_to_human_handler(
             "status": "pending_review",
             "message": f"Case escalated to human agent. Escalation ID: {escalation_record['escalation_id']}. A human "
             f"agent will review this case shortly.",
+            "escalation_type": reason,
         },
     }
 

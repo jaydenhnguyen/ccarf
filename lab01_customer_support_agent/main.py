@@ -1,5 +1,7 @@
 import os
+from dataclasses import dataclass, field
 
+from case_fact import render_case_facts
 from config import LOG_FILE, LOG_TO_STDERR, MAX_TURNS, MODEL, anthropic_client, console
 from context import ToolContext, build_tool_context
 from core.agent_logger import (
@@ -74,26 +76,34 @@ def load_system_prompt():
     return content
 
 
-def run_agent(user_input):
+# One customer conversation: history + trusted state live as long as the conversation, not one input
+@dataclass
+class Conversation:
+    messages: list[dict] = field(default_factory=list)
+    session: AgentSession = field(default_factory=AgentSession)  # starts unverified, no case facts
+
+
+def run_agent(user_input: str, conversation: Conversation):
     system_prompt = load_system_prompt()
 
-    MESSAGES = [
-        {
-            "role": "user",
-            "content": user_input,
-        }
-    ]
+    MESSAGES = conversation.messages
+    session = conversation.session
 
+    MESSAGES.append({"role": "user", "content": user_input})
     log_user_query(user_input)
-    session = AgentSession()  # fresh per conversation: starts unverified
 
     for i in range(MAX_TURNS):
         log_iteration(i + 1, MAX_TURNS, MESSAGES)
+        logger.debug("case_facts: %s", session.case_facts)  # what Claude sees in <case_facts> this call
 
         try:
             with console.status("Processing request...", spinner="dots"):
                 response = anthropic_client.messages.create(
-                    model=MODEL, max_tokens=1024, system=system_prompt, tools=ALL_TOOLS, messages=MESSAGES
+                    model=MODEL,
+                    max_tokens=1024,
+                    system=system_prompt + render_case_facts(session.case_facts),
+                    tools=ALL_TOOLS,
+                    messages=MESSAGES,
                 )
         except Exception as e:
             logger.exception("API call failed")
@@ -103,6 +113,7 @@ def run_agent(user_input):
         log_response(response)
 
         if response.stop_reason == END_TURN:
+            MESSAGES.append({"role": "assistant", "content": response.content})  # so the next turn has it
             answer = "".join(block.text for block in response.content if is_text_block(block))
             log_final_answer(answer)
             print_final_answer(console, answer)
@@ -134,6 +145,7 @@ def main():
     setup_agent_logger(LOG_FILE, also_stderr=LOG_TO_STDERR)
     clear_screen()
     show_menu(APP_TITLE, TEST_QUERIES)
+    conversation = Conversation()
 
     while True:
         user_input = input(f"{CYAN}You > {RESET}").strip()
@@ -149,11 +161,18 @@ def main():
             show_menu(APP_TITLE, TEST_QUERIES)
             continue
 
-        if user_input.isdigit() and 1 <= int(user_input) <= len(TEST_QUERIES):
-            user_input = TEST_QUERIES[int(user_input) - 1]
-            print(f"  {DIM}→ {user_input}{RESET}")
+        if user_input.lower() == "n":
+            conversation = Conversation()
+            print(f"  {DIM}→ new conversation{RESET}")
+            continue
 
-        run_agent(user_input)
+        # each test query is its own case - start fresh so earlier cases don't leak in
+        if user_input.isdigit() and 1 <= int(user_input) <= len(TEST_QUERIES):
+            conversation = Conversation()
+            user_input = TEST_QUERIES[int(user_input) - 1]
+            print(f"  {DIM}→ new conversation: {user_input}{RESET}")
+
+        run_agent(user_input, conversation)
 
 
 if __name__ == "__main__":
