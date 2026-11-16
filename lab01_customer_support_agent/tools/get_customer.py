@@ -7,7 +7,7 @@ from core.tools.errors import ToolTransientError, ToolValidationError
 from core.tools.results import ToolResult
 from core.tools.retry import RetryPolicy
 from data import CUSTOMERS, CUSTOMERS_BY_EMAIL
-from hooks.identity import add_verified_customer_record_to_session
+from hooks.identity import add_verified_customer_record_to_case_facts
 
 get_customer_schema = {
     "name": "get_customer",
@@ -47,7 +47,7 @@ get_customer_schema = {
 get_customer_retry_policy: RetryPolicy = {"retry_by": "code", "max_attempts": 3}
 
 # order matter
-get_customer_post_hooks = [add_verified_customer_record_to_session]
+get_customer_post_hooks = [add_verified_customer_record_to_case_facts]
 
 CUSTOMER_ID_PATTERN = re.compile(r"^CUST-\d{4}$")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

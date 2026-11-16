@@ -5,6 +5,7 @@ from core.tools.errors import ToolTransientError
 from core.tools.results import ToolResult
 from core.tools.retry import RetryPolicy
 from data import ORDERS
+from hooks.case_facts import add_found_order_to_case_facts
 from hooks.identity import require_verified_customer
 
 lookup_order_schema = {
@@ -42,6 +43,7 @@ lookup_order_schema = {
 lookup_order_retry_policy: RetryPolicy = {"retry_by": "code", "max_attempts": 3}
 
 lookup_order_pre_hooks = [require_verified_customer]
+lookup_order_post_hooks = [add_found_order_to_case_facts]
 
 
 def lookup_order_handler(_ctx: ToolContext, order_id: str) -> ToolResult:

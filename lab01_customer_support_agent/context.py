@@ -10,7 +10,7 @@ class ToolContext:
 
 
 def build_tool_context(session: AgentSession) -> ToolContext:
-    customer = session.verified_customer
+    customer = session.case_facts.customer
     if not customer:
         return ToolContext()
 
