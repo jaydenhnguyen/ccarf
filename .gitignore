@@ -5,3 +5,4 @@
 /logs/
 *.docx
 /sandbox.py
+__pycache__/
