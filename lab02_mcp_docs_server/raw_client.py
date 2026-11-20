@@ -59,17 +59,21 @@ def main() -> None:
         )
         client.notify("notifications/initialized")
 
-        step("2. tools/list: what the host would hand to Claude as `tools`")
-        client.request("tools/list")
+        # step("2. tools/list: what the host would hand to Claude as `tools`")
+        # client.request("tools/list")
+        #
+        # step("3. resources/list: what the host's app/UI can read")
+        # client.request("resources/list")
+        #
+        # step("4. resources/read docs://index")
+        # client.request("resources/read", {"uri": "docs://index"})
+        #
+        # step("5. tools/list: search_docs")
+        # client.request("tools/call", {"name": "search_docs", "arguments": {"query": "refund"}})
 
-        step("3. resources/list: what the host's app/UI can read")
-        client.request("resources/list")
-
-        step("4. resources/read docs://index")
-        client.request("resources/read", {"uri": "docs://index"})
-
-        step("5. tools/list: search_docs")
-        client.request("tools/call", {"name": "search_docs", "arguments": {"query": "refund"}})
+        # client.request("tools/call", {"name": "nope", "arguments": {}})  # 1. unknown tool
+        client.request("tools/call", {"name": "get_doc", "arguments": {"doc_id": "DOC-999"}})  # 2. doc not found
+        # client.request("tools/call", {"name": "get_doc", "arguments": {}})  # 3. missing argument
     finally:
         client.close()
 
