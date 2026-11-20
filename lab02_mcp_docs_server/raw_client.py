@@ -1,19 +1,11 @@
-"""B0 - a hand-written MCP client, no SDK: what a host's MCP client does under the hood.
-
-Spawns server_ref.py as a subprocess (stdio transport) and exchanges newline-delimited JSON-RPC
-messages with it. No Claude API call happens here.
-
-Run from the repo root:
-    .venv/bin/python lab02_mcp_docs_server/raw_client.py
-"""
-
 import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 SERVER = Path(__file__).parent / "server.py"
-PROTOCOL_VERSION = "2025-11-25"  # handshake-era revision (initialize -> initialized -> requests)
+PROTOCOL_VERSION = "2025-11-25"
 
 CYAN, GREEN, DIM, RESET = "\033[96m", "\033[92m", "\033[2m", "\033[0m"
 
@@ -26,13 +18,13 @@ class RawClient:
         )
         self.next_id = 1
 
-    def _send(self, message: dict) -> None:
+    def _send(self, message: dict[str, Any]) -> None:
         print(f"\n{CYAN}→ client sends{RESET}\n{json.dumps(message, indent=2)}")
         self.proc.stdin.write(json.dumps(message) + "\n")
         self.proc.stdin.flush()
 
-    def request(self, method: str, params: dict | None = None) -> dict:
-        message = {"jsonrpc": "2.0", "id": self.next_id, "method": method}
+    def request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        message: dict[str, Any] = {"jsonrpc": "2.0", "id": self.next_id, "method": method}
         if params is not None:
             message["params"] = params
         self.next_id += 1
@@ -75,6 +67,9 @@ def main() -> None:
 
         step("4. resources/read docs://index")
         client.request("resources/read", {"uri": "docs://index"})
+
+        step("5. tools/list: search_docs")
+        client.request("tools/call", {"name": "search_docs", "arguments": {"query": "refund"}})
     finally:
         client.close()
 
