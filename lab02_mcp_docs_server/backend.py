@@ -1,4 +1,10 @@
+import os
+import re
+
+from core.tools.errors import ToolTransientError, ToolValidationError
 from data import DOCS
+
+DOC_ID_PATTERN = re.compile(r"DOC-\d+")
 
 
 def _summary(doc: dict[str, str]) -> dict[str, str]:
@@ -19,4 +25,14 @@ def search_docs(query: str) -> list[dict[str, str]]:
 
 
 def get_doc(doc_id: str) -> dict[str, str] | None:
-    return DOCS.get(doc_id.strip().upper())
+    normalized = doc_id.strip().upper()
+    if not DOC_ID_PATTERN.fullmatch(normalized):
+        raise ToolValidationError(
+            f"Invalid doc_id {doc_id!r}. Expected 'DOC-' followed by digits, e.g. 'DOC-101'.",
+            doc_id=doc_id,
+        )
+
+    if os.getenv("SIMULATE_BACKEND_TIMEOUT") == "1":
+        raise ToolTransientError("Docs backend timed out. The document may exist; try again.", doc_id=normalized)
+
+    return DOCS.get(normalized)

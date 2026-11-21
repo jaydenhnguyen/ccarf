@@ -6,8 +6,9 @@ import uuid
 
 import backend
 from mcp.server import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
+
+from core.tools.errors import ToolError, ToolValidationError
 
 log = logging.getLogger("docs-server")
 
@@ -19,6 +20,19 @@ log.setLevel(logging.INFO)
 log.propagate = False
 
 server = MCPServer("docs")
+
+
+def _meta(started: float) -> dict[str, str | float]:
+    return {"trace_id": str(uuid.uuid4()), "latency_ms": round((time.perf_counter() - started) * 1000, 2)}
+
+
+def _error_result(error: ToolError, started: float) -> CallToolResult:
+    result = error.to_result()
+    payload = {"error_category": result["error_category"], "is_retryable": result["is_retryable"], **result["content"]}
+    cac = CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))], is_error=True, _meta=_meta(started)
+    )
+    return cac
 
 
 @server.resource(
@@ -57,22 +71,26 @@ def search_docs(query: str) -> str:
     description=(
         "Read the full text of one company document by its exact doc_id. "
         "Use this only when you already have a doc_id (from search_docs or the user); do not guess ids. "
+        "On error, the result is JSON with error_category, is_retryable and message. Retry only if is_retryable is "
+        "true; otherwise follow the message."
         'Input: a doc_id in the form "DOC-" followed by digits, e.g. "DOC-101". '
         "Returns: JSON with doc_id, title, classification, updated_at and content."
     )
 )
 def get_doc(doc_id: str) -> CallToolResult:
     started = time.perf_counter()
-    doc = backend.get_doc(doc_id)
-    log.info("get_doc %r -> %s", doc_id, "found" if doc else "not found")
+    try:
+        doc = backend.get_doc(doc_id)
+        if doc is None:
+            raise ToolValidationError(
+                f"No document with doc_id {doc_id!r}. Use search_docs to find a valid doc_id.", doc_id=doc_id
+            )
+    except ToolError as error:
+        log.info("get_doc %r -> %s error", doc_id, error.category)
+        return _error_result(error, started)
 
-    if doc is None:
-        raise ToolError(f"No document with doc_id {doc_id!r}. Use search_docs to find a valid doc_id.")
-
-    return CallToolResult(
-        content=[TextContent(type="text", text=json.dumps(doc))],
-        _meta={"trace_id": str(uuid.uuid4()), "latency_ms": round((time.perf_counter() - started) * 1000, 2)},
-    )
+    log.info("get_doc %r -> found", doc_id)
+    return CallToolResult(content=[TextContent(type="text", text=json.dumps(doc))], _meta=_meta(started))
 
 
 if __name__ == "__main__":
