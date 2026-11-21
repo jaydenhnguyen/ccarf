@@ -72,7 +72,7 @@ def main() -> None:
         # client.request("tools/call", {"name": "search_docs", "arguments": {"query": "refund"}})
 
         # client.request("tools/call", {"name": "nope", "arguments": {}})  # 1. unknown tool
-        client.request("tools/call", {"name": "get_doc", "arguments": {"doc_id": "DOC-999"}})  # 2. doc not found
+        client.request("tools/call", {"name": "get_doc", "arguments": {"doc_id": "DOC-101"}})  # 2. doc not found
         # client.request("tools/call", {"name": "get_doc", "arguments": {}})  # 3. missing argument
     finally:
         client.close()

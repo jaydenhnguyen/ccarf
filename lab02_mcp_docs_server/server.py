@@ -1,10 +1,13 @@
 import json
 import logging
 import sys
+import time
+import uuid
 
 import backend
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult, TextContent
 
 log = logging.getLogger("docs-server")
 
@@ -58,12 +61,18 @@ def search_docs(query: str) -> str:
         "Returns: JSON with doc_id, title, classification, updated_at and content."
     )
 )
-def get_doc(doc_id: str) -> str:
+def get_doc(doc_id: str) -> CallToolResult:
+    started = time.perf_counter()
     doc = backend.get_doc(doc_id)
     log.info("get_doc %r -> %s", doc_id, "found" if doc else "not found")
+
     if doc is None:
         raise ToolError(f"No document with doc_id {doc_id!r}. Use search_docs to find a valid doc_id.")
-    return json.dumps(doc)
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(doc))],
+        _meta={"trace_id": str(uuid.uuid4()), "latency_ms": round((time.perf_counter() - started) * 1000, 2)},
+    )
 
 
 if __name__ == "__main__":
