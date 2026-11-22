@@ -98,6 +98,11 @@ def get_doc(creds: Credentials, doc_id: str) -> dict[str, Any]:
         doc = None  # hidden = missing, so the caller can't probe which ids exist
 
     if doc is None:
-        # a valid empty result, not an error. Neutral wording: the backend doesn't know any MCP tool names
-        return {"found": False, "doc_id": normalized, "message": "No document with this doc_id."}
+        # a valid empty result, not an error. One message for "missing" and "hidden": still no enumeration
+        # signal, but it doesn't tell a legitimate user a lie. Neutral wording: the backend doesn't know MCP tool names
+        return {
+            "found": False,
+            "doc_id": normalized,
+            "message": "No document found with this doc_id, or you don't have access to it.",
+        }
     return {"found": True, **doc}

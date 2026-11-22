@@ -1,16 +1,13 @@
-import hmac
 import json
 import logging
+import os
 import sys
 import time
 import uuid
-from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
 
 from dotenv import dotenv_values
 from mcp.server import MCPServer
-from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
 
@@ -32,72 +29,31 @@ log.setLevel(logging.INFO)
 log.propagate = False
 
 ENV_FILE = REPO_ROOT / ".env"
-CLIENT_TOKEN_META_KEY = "docs/client_token"
-USER_TOKEN_META_KEY = "docs/user_token"
-UNAUTHORIZED = -32001
-HANDSHAKE_METHODS = frozenset({"initialize", "notifications/initialized"})
+UNAUTHORIZED = -32001  # JSON-RPC leaves -32000..-32099 to the server; plays the role of HTTP 401
 
-# the MCP server's own config
+# No client authentication on stdio: the client spawned this process, so the launch is the trust boundary
+# (per-request client/user auth comes with HTTP + Bearer in B4b)
+
+# the server's own config: read from its file
 SERVER_CONFIG = dotenv_values(ENV_FILE)
 
-# dev-only escape hatch for tools that can't send our _meta tokens (the Inspector)
-DEV_SKIP_CLIENT_AUTH = SERVER_CONFIG.get("DOCS_MCP_DEV_SKIP_CLIENT_AUTH") == "1"
-DEV_USER_TOKEN = SERVER_CONFIG.get("DOCS_MCP_DEV_USER_TOKEN") if DEV_SKIP_CLIENT_AUTH else None
 
-
-def _require_config(name: str) -> str:
-    value = SERVER_CONFIG.get(name)
+def _require(value: str | None, name: str, source: str) -> str:
     if not value:
-        log.error("%s missing in %s; refusing to start", name, ENV_FILE)
+        log.error("%s missing in %s; refusing to start", name, source)
         sys.exit(1)
     return value
 
 
-ACCEPTED_CLIENT_TOKEN = _require_config("DOCS_MCP_ACCEPTED_CLIENT_TOKEN")
-SERVER_KEY = _require_config("DOCS_SERVER_KEY")  # the server's own identity towards the backend
+SERVER_KEY = _require(SERVER_CONFIG.get("DOCS_SERVER_KEY"), "DOCS_SERVER_KEY", str(ENV_FILE))
 
-# who this request is for: set per request by the middleware, read by the handlers.
-# a contextvar because the static docs://index resource can't receive the request Context
-CURRENT_USER_TOKEN: ContextVar[str] = ContextVar("current_user_token")
+# the user this process serves. stdio = one process per user: whoever spawns us (Claude Code, raw_client)
+# is acting for that user and passes their token in the env. The server only forwards it; the backend validates it
+USER_TOKEN = _require(os.environ.get("DOCS_USER_TOKEN"), "DOCS_USER_TOKEN", "the launch environment")
 
+CREDENTIALS = backend.Credentials(server_key=SERVER_KEY, user_token=USER_TOKEN)
 
-# runs before EVERY message
-async def authenticate_request(ctx: ServerRequestContext[Any, Any], call_next: CallNext) -> HandlerResult:
-    meta = ctx.meta or {}
-
-    if not DEV_SKIP_CLIENT_AUTH:
-        presented = meta.get(CLIENT_TOKEN_META_KEY)
-
-        if not isinstance(presented, str) or not hmac.compare_digest(presented, ACCEPTED_CLIENT_TOKEN):
-            reason = "missing" if presented is None else "wrong"
-            log.warning("client auth denied: method=%s token=%s", ctx.method, reason)
-            raise MCPError(code=UNAUTHORIZED, message="Unauthorized: missing or invalid client token")
-
-    # the handshake belongs to the client app (before any user logs in) and touches no user data,
-    # so it needs the client token only; every other message also needs a user token
-    if ctx.method in HANDSHAKE_METHODS:
-        return await call_next(ctx)
-
-    user_token = meta.get(USER_TOKEN_META_KEY) or DEV_USER_TOKEN
-    if not isinstance(user_token, str) or not user_token:
-        log.warning("client auth denied: method=%s user token=missing", ctx.method)
-        raise MCPError(code=UNAUTHORIZED, message="Unauthorized: missing user token")
-
-    reset = CURRENT_USER_TOKEN.set(user_token)
-    try:
-        return await call_next(ctx)
-    finally:
-        CURRENT_USER_TOKEN.reset(reset)
-
-
-def _credentials() -> backend.Credentials:
-    return backend.Credentials(server_key=SERVER_KEY, user_token=CURRENT_USER_TOKEN.get())
-
-
-if DEV_SKIP_CLIENT_AUTH:
-    log.warning("DOCS_MCP_DEV_SKIP_CLIENT_AUTH=1: client token check is OFF, dev user = %s (dev only)", DEV_USER_TOKEN)
-
-server = MCPServer("docs", middleware=[authenticate_request])
+server = MCPServer("docs")
 
 
 def _meta(started: float) -> dict[str, str | float]:
@@ -126,7 +82,7 @@ def _error_result(error: ToolError, started: float) -> CallToolResult:
 )
 def get_docs_index() -> list[dict[str, str]]:
     try:
-        return backend.get_list_doc(_credentials())  # simulate MCP Server makes HTTP request to BE
+        return backend.get_list_doc(CREDENTIALS)  # simulate MCP Server makes HTTP request to BE
 
     except backend.AuthenticationError as error:
         raise MCPError(code=UNAUTHORIZED, message=f"Unauthorized: {error}") from None
@@ -147,7 +103,7 @@ def get_docs_index() -> list[dict[str, str]]:
 def search_docs(query: str) -> CallToolResult:
     started = time.perf_counter()
     try:
-        matches = backend.search_docs(_credentials(), query)  # simulate MCP Server makes HTTP request to BE
+        matches = backend.search_docs(CREDENTIALS, query)  # simulate MCP Server makes HTTP request to BE
 
     except backend.AuthenticationError as error:
         raise MCPError(code=UNAUTHORIZED, message=f"Unauthorized: {error}") from None
@@ -168,14 +124,14 @@ def search_docs(query: str) -> CallToolResult:
         "true; otherwise follow the message. "
         'Input: a doc_id in the form "DOC-" followed by digits, e.g. "DOC-101". '
         "Returns: JSON with found=true plus doc_id, title, classification, updated_at and content; or found=false "
-        "when no document has that doc_id (a real answer, not an error: do not retry the same id; "
-        "use search_docs to find the right doc_id)."
+        "when the doc_id does not exist or the user has no access to it (a real answer, not an error: do not retry "
+        "the same id; use search_docs to find the right doc_id, or tell the user they may need to request access)."
     )
 )
 def get_doc(doc_id: str) -> CallToolResult:
     started = time.perf_counter()
     try:
-        result = backend.get_doc(_credentials(), doc_id)  # simulate MCP Server makes HTTP request to BE
+        result = backend.get_doc(CREDENTIALS, doc_id)  # simulate MCP Server makes HTTP request to BE
 
     except backend.AuthenticationError as error:
         raise MCPError(code=UNAUTHORIZED, message=f"Unauthorized: {error}") from None
