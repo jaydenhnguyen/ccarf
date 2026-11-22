@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "docs": {
+      "command": ".venv/bin/python",
+      "args": ["lab02_mcp_docs_server/log_proxy.py"],
+      "env": {
+        "DOCS_USER_TOKEN": "${DOCS_USER_TOKEN}"
+      }
+    }
+  }
+}
