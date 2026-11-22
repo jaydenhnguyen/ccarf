@@ -38,3 +38,14 @@ DOCS = {
         "content": "Engineer L3: $120k-$145k. Engineer L4: $150k-$180k. Engineer L5: $185k-$230k.",
     },
 }
+
+# MCP servers allowed to call this backend
+REGISTERED_SERVERS = {
+    "srv-key-docs-mcp-01": "docs-mcp",
+}
+
+USER_TOKENS = {
+    "tok-carl": {"user_id": "u-carl", "name": "Carl", "role": "contractor"},
+    "tok-alice": {"user_id": "u-alice", "name": "Alice", "role": "employee"},
+    "tok-hana": {"user_id": "u-hana", "name": "Hana", "role": "hr"},
+}
